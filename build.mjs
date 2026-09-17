@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { build } from 'esbuild';
 
-const entryPoints = [];
+const entryPoints = ['src/sw.ts', 'src/regex.ts'];
 await rm('dist', { recursive: true, force: true });
 await mkdir('dist', { recursive: true });
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));

@@ -34,11 +34,9 @@ library is portable through versioned JSON export and import.
 
 ## Status
 
-Specification stage — no implementation yet. [SPEC.md](SPEC.md) is normative and
-covers the data model, template language, capture strategies, storage, Chrome
-permissions, privacy boundaries, architecture, phasing, and the v0.1 acceptance
-criteria. [examples/prompts.example.json](examples/prompts.example.json) is a
-valid library in the documented export format.
+Implementation is in progress, and [SPEC.md](SPEC.md) is normative.
+[examples/prompts.example.json](examples/prompts.example.json) is a valid library
+in the documented export format.
 
 ## License
 

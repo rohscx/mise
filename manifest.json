@@ -1,6 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mise",
+  "description": "Fill reusable work prompts with browser context and copy the finished text to paste into an AI chat.",
   "version": "0.0.0",
   "minimum_chrome_version": "116",
   "permissions": [
@@ -21,10 +22,15 @@
   "commands": {
     "open-palette": {
       "suggested_key": {
-        "default": "Ctrl+Shift+1"
+        "default": "Ctrl+Shift+1",
+        "mac": "Command+Shift+1"
       },
       "description": "Open Mise",
       "global": true
     }
+  },
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
   }
 }
