@@ -12,10 +12,11 @@
     "verify:chrome": "node tools/verify-in-chrome.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.25.8",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4",
+    "@types/chrome": "^0.0.287",
     "@types/node": "^22.15.0",
-    "@types/chrome": "^0.0.287"
+    "esbuild": "^0.25.8",
+    "playwright": "^1.63.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
   }
 }

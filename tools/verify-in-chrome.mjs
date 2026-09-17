@@ -4,9 +4,10 @@
 // had and Chrome did not, a sender shape the fakes never produced, and a
 // viewport-relative width that collapsed the popup. Run with `npm run verify:chrome`.
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 const DIST = process.env.MISE_DIST ?? 'dist';
 const PORT = Number(process.env.MISE_CDP_PORT ?? 9333);
@@ -22,6 +23,14 @@ async function resolveChrome() {
     const found = spawnSync('which', [name], { encoding: 'utf8' });
     if (found.status === 0 && found.stdout.trim()) return found.stdout.trim();
   }
+  // Playwright's Chromium is the fallback CI relies on: Google Chrome refuses
+  // content verification for an unpacked extension on some builds, which
+  // silently disables the extension's APIs rather than failing to load it.
+  try {
+    const { chromium } = await import('playwright');
+    const path = chromium.executablePath();
+    if (path) return path;
+  } catch { /* playwright is optional */ }
   throw new Error('No Chrome found. Set MISE_CHROME to a Chrome or Chromium binary.');
 }
 
@@ -78,6 +87,10 @@ const chrome = spawn(chromePath, [
   `--remote-debugging-port=${PORT}`,
   `--load-extension=${DIST}`,
   `--disable-extensions-except=${DIST}`,
+  // Chrome 137+ ignores --load-extension unless this opt-out is present; the
+  // extension then half-loads with no API access, which looks like a dozen
+  // unrelated failures rather than a refusal.
+  '--disable-features=DisableLoadExtensionCommandLineSwitch',
   '--no-first-run', '--no-default-browser-check', '--disable-sync',
   '--disable-background-networking', '--disable-component-update',
   ...(process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
@@ -87,28 +100,28 @@ let stderr = '';
 chrome.stderr.on('data', chunk => { stderr += chunk.toString(); });
 
 try {
-  let worker = null;
-  for (let attempt = 0; attempt < 80 && !worker; attempt++) {
-    try {
-      const targets = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json();
-      worker = targets.find(t => t.type === 'service_worker' && t.url.startsWith('chrome-extension://'));
-    } catch { /* the port is not open yet */ }
-    if (!worker) await sleep(300);
-  }
-  if (!worker) throw new Error('The service worker never started; Chrome rejected the manifest or the worker threw.');
-  const extensionId = new URL(worker.url).hostname;
-  notes.push(`Extension ${extensionId} loaded from ${DIST}`);
+  // Chrome derives an unpacked extension's id from its absolute path, so it can
+  // be computed rather than discovered. A service-worker target only exists
+  // once something wakes the worker, and newer Chrome leaves it dormant, so
+  // waiting for that target reads as "the extension failed to load".
+  const absolute = resolve(DIST);
+  const digest = createHash('sha256').update(absolute, 'utf8').digest('hex').slice(0, 32);
+  const extensionId = [...digest].map(c => String.fromCharCode(97 + Number.parseInt(c, 16))).join('');
+  notes.push(`Extension ${extensionId} loaded from ${absolute}`);
 
-  const workerLogs = [];
-  await cdp(worker.webSocketDebuggerUrl, async send => {
-    await send('Runtime.enable');
-    await send('Log.enable');
-    await sleep(1200);
-  }, collector(workerLogs));
-  if (workerLogs.length) problems.push(...workerLogs.map(line => `service worker — ${line}`));
-  else notes.push('Service worker started clean.');
+  const manifestEarly = JSON.parse(await readFile(join(DIST, 'manifest.json'), 'utf8'));
+  const open = async path => {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      try {
+        return await (await fetch(
+          `http://127.0.0.1:${PORT}/json/new?chrome-extension://${extensionId}/${path}`, { method: 'PUT' })).json();
+      } catch { await sleep(300); }
+    }
+    throw new Error('Chrome never opened its debugging port');
+  };
 
-  // Seed the shipped example library so the popup is exercised with real data.
+  // Seed from an extension page: it has the same storage access as the worker,
+  // needs no target discovery, and wakes the worker on the way.
   const library = JSON.parse(await readFile(join(DIST, '..', 'examples/prompts.example.json'), 'utf8'));
   const state = {
     revision: 1, generation: 1, syncEnabled: false,
@@ -120,21 +133,44 @@ try {
     selection: 'Rotation should invalidate the previous key once every worker reports the new one.',
     sourceTabId: null, source: 'tab', capturedAt: new Date().toISOString(),
   };
-  const seeded = await cdp(worker.webSocketDebuggerUrl, async send => {
+  const seeder = await open(manifestEarly.options_ui?.page ?? 'options.html');
+  const seeded = await cdp(seeder.webSocketDebuggerUrl, async send => {
     await send('Runtime.enable');
+    await sleep(1200);
+    const reachable = await evaluate(send, 'typeof chrome?.storage?.local');
+    if (reachable !== 'object') return `extension APIs unreachable (chrome.storage.local is ${reachable})`;
     return evaluate(send, `(async () => {
       await chrome.storage.local.set({ state: ${JSON.stringify(state)} });
       await chrome.storage.session.set({ slot: ${JSON.stringify(slot)} });
-      const back = await chrome.storage.local.get('state');
-      return back.state.state.library.prompts.length;
+      return (await chrome.storage.local.get('state')).state.state.library.prompts.length;
     })()`, true);
   });
-  if (seeded !== library.prompts.length) problems.push(`seed — wrote ${seeded} prompts, expected ${library.prompts.length}`);
+  if (seeded !== library.prompts.length) {
+    problems.push(`seed — ${seeded}; expected ${library.prompts.length} prompts. The extension is not installed or has no API access.`);
+  }
 
-  const manifest = JSON.parse(await readFile(join(DIST, 'manifest.json'), 'utf8'));
-  const open = async path => (await (await fetch(
-    `http://127.0.0.1:${PORT}/json/new?chrome-extension://${extensionId}/${path}`, { method: 'PUT' })).json());
+  // The worker is awake now, so its target exists and its logs are readable.
+  let worker = null;
+  for (let attempt = 0; attempt < 20 && !worker; attempt++) {
+    try {
+      const targets = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json();
+      worker = targets.find(t => t.type === 'service_worker' && t.url.includes(extensionId));
+    } catch { /* transient */ }
+    if (!worker) await sleep(300);
+  }
+  if (!worker) notes.push('Service worker dormant; no worker log check.');
+  else {
+    const workerLogs = [];
+    await cdp(worker.webSocketDebuggerUrl, async send => {
+      await send('Runtime.enable');
+      await send('Log.enable');
+      await sleep(1200);
+    }, collector(workerLogs));
+    if (workerLogs.length) problems.push(...workerLogs.map(line => `service worker — ${line}`));
+    else notes.push('Service worker started clean.');
+  }
 
+  const manifest = manifestEarly;
   const popup = await open(manifest.action.default_popup);
   const popupLogs = [];
   await cdp(popup.webSocketDebuggerUrl, async send => {
