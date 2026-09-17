@@ -71,6 +71,7 @@ export function recordCopy(state: LocalState, fill: FillSnapshot, values: Readon
   const next = structuredClone(state);
   const remembered = reconcileRemembered(fill.prompt, state.remembered[fill.prompt.id] ?? {});
   for (const variable of fill.inputs) {
+    // Define an own property because valid names such as __proto__ would otherwise invoke an inherited setter.
     if (variable.rememberLast && Object.hasOwn(values, variable.name)) Object.defineProperty(remembered, variable.name, { value: values[variable.name] ?? '', enumerable: true, writable: true, configurable: true });
   }
   next.remembered[fill.prompt.id] = remembered;

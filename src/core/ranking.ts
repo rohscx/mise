@@ -2,6 +2,7 @@ import type { ExportFile, Prompt, Usage } from '../shared/types.js';
 import { expandTemplate, renderTemplate } from './template.js';
 import { matchesPattern } from './rules.js';
 
+export type SearchIndex = readonly { prompt: Prompt; fields: readonly string[] }[];
 export interface RankedPrompt { prompt: Prompt; score: number; scoped: boolean }
 
 function fieldScore(term: string, field: string): number {
@@ -22,14 +23,20 @@ function compare(a: string, b: string): number {
   return left.length - right.length;
 }
 
-export function rankPrompts(library: ExportFile, query: string, activeUrl: string | null,
-  usage: Readonly<Record<string, Usage>> = {}): RankedPrompt[] {
-  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
-  const ranked: RankedPrompt[] = [];
-  for (const prompt of library.prompts) {
+export function buildSearchIndex(library: ExportFile): SearchIndex {
+  return library.prompts.map(prompt => {
     const expanded = expandTemplate(prompt.body, { kind: 'prompt', name: prompt.id }, library.partials);
     const body = renderTemplate(expanded, name => `{{${name}}}`).output;
     const fields = [prompt.name, prompt.body, body, ...prompt.tags].map(s => s.toLowerCase());
+    return { prompt, fields };
+  });
+}
+
+export function rankPrompts(index: SearchIndex, query: string, activeUrl: string | null,
+  usage: Readonly<Record<string, Usage>> = {}): RankedPrompt[] {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const ranked: RankedPrompt[] = [];
+  for (const { prompt, fields } of index) {
     const scores = terms.map(term => Math.max(...fields.map(field => fieldScore(term, field))));
     if (scores.some(score => score === 0)) continue;
     ranked.push({ prompt, score: scores.reduce((a, b) => a + b, 0),

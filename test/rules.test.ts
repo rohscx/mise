@@ -22,6 +22,11 @@ describe('site rules and accessors', () => {
     expect(await evaluateRules(rules, exampleUrl, execute)).toEqual({ ruleId: 'first', captures: { one: 'https' }, problem: null });
     expect((await evaluateRules([{ ...rules[0], id: 'case', match: 'https://*/*', regex: 'HTTPS', flags: 'i' }], exampleUrl, execute)).ruleId).toBe('case');
   });
+  it('ignores an invalid rule for another site before resolving a matching rule', async () => {
+    const invalid = { id: 'invalid', match: 'https://other.example.com/*', regex: '(', flags: '' } satisfies Parameters<typeof evaluateRules>[0][number];
+    const result = await evaluateRules([invalid, ...library().siteRules], exampleUrl, execute);
+    expect(result).toEqual({ ruleId: 'jira-queue', captures: { project: 'OPS', ticket: 'OPS-4821' }, problem: null });
+  });
   it('handles hostname, encoded path, first decoded query value, missing and empty (6)', () => {
     const url = 'https://jira.example.com:8443/a%20b?name=one+two&name=second&empty=&NAME=upper#frag';
     expect(urlAccessor('url.host', url)).toBe('jira.example.com');

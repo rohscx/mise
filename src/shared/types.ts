@@ -20,7 +20,7 @@ export interface Prompt {
   scope: UrlMatchPattern[];
   variables: FreeVariable[];
 }
-export interface Partial {
+export interface PromptPartial {
   name: string;
   body: string;
 }
@@ -58,6 +58,6 @@ export interface LocalState {
 export interface ExportFile {
   schemaVersion: 1;
   prompts: Prompt[];
-  partials: Partial[];
+  partials: PromptPartial[];
   siteRules: SiteRule[];
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { expandTemplate, MAX_OUTPUT_BYTES, parseTemplate, renderTemplate } from '../src/core/template.js';
-import type { Partial } from '../src/shared/types.js';
+import type { PromptPartial } from '../src/shared/types.js';
 
 const origin = { kind: 'prompt', name: 'test' } satisfies Parameters<typeof parseTemplate>[1];
-function render(body: string, partials: Partial[] = [], values: Record<string, string> = {}): ReturnType<typeof renderTemplate> {
+function render(body: string, partials: PromptPartial[] = [], values: Record<string, string> = {}): ReturnType<typeof renderTemplate> {
   return renderTemplate(expandTemplate(body, origin, partials), name => values[name] ?? null);
 }
 

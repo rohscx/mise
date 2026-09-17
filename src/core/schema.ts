@@ -1,4 +1,4 @@
-import type { ExportFile, FreeVariable, Partial, Prompt, SiteRule } from '../shared/types.js';
+import type { ExportFile, FreeVariable, PromptPartial, Prompt, SiteRule } from '../shared/types.js';
 
 export interface ValidationIssue { path: string; message: string }
 export type Validation<T> = { ok: true; value: T } | { ok: false; issues: ValidationIssue[] };
@@ -27,7 +27,7 @@ function prompt(value: unknown): Prompt | null {
   for (const entry of value.variables) { const parsed = free(entry); if (!parsed) return null; variables.push(parsed); }
   return { id: value.id, name: value.name, body: value.body, tags: [...value.tags], scope: [...value.scope], variables };
 }
-function partial(value: unknown): Partial | null {
+function partial(value: unknown): PromptPartial | null {
   if (!fields(value, ['name', 'body']) || !id(value.name) || typeof value.body !== 'string') return null;
   return { name: value.name, body: value.body };
 }

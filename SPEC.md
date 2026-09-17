@@ -45,7 +45,7 @@ The host identifies the service; `OPS` is the project and `OPS-4821` is the issu
 
 # 4. Core concepts and data model
 
-The following types define persisted library records and runtime context separately. All strings are Unicode; bodies retain their line breaks and have no implicit trimming.
+The following types define persisted library records and runtime context separately. (`PromptPartial` replaces `Partial` to avoid shadowing TypeScript’s `Partial<T>` utility; the wire format is unchanged.) All strings are Unicode; bodies retain their line breaks and have no implicit trimming.
 Timestamps use UTC RFC 3339 strings; URL values use the browser's absolute serialization. IDs and partial names use `[a-z][a-z0-9-]{0,63}` and remain stable across exports.
 Free variable names use `[A-Za-z_][A-Za-z0-9_]{0,63}`. Every field is required unless marked optional; unknown persisted fields are rejected.
 
@@ -72,7 +72,7 @@ interface Prompt {
   scope: UrlMatchPattern[];
   variables: FreeVariable[];
 }
-interface Partial {
+interface PromptPartial {
   name: string;
   body: string;
 }
@@ -110,7 +110,7 @@ interface LocalState {
 interface ExportFile {
   schemaVersion: 1;
   prompts: Prompt[];
-  partials: Partial[];
+  partials: PromptPartial[];
   siteRules: SiteRule[];
 }
 ```

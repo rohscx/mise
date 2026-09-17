@@ -1,4 +1,4 @@
-import type { Partial } from '../shared/types.js';
+import type { PromptPartial } from '../shared/types.js';
 
 export const MAX_OUTPUT_BYTES = 1024 * 1024;
 export interface Origin { kind: 'prompt' | 'partial'; name: string }
@@ -55,7 +55,7 @@ export function parseTemplate(body: string, origin: Origin): ParsedTemplate {
   return { tokens, problems };
 }
 
-export function expandTemplate(body: string, origin: Origin, partials: readonly Partial[]): Expansion {
+export function expandTemplate(body: string, origin: Origin, partials: readonly PromptPartial[]): Expansion {
   const tokens: Token[] = [];
   const problems: Problem[] = [];
   const byName = new Map(partials.map(p => [p.name, p]));

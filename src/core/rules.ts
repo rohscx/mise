@@ -109,8 +109,8 @@ export async function evaluateRules(rules: readonly SiteRule[], url: string, exe
   if (new TextEncoder().encode(url).length > 16 * 1024) return { ...empty, problem: { code: 'url-size', ruleId: '' } };
   const deadline = performance.now() + 100;
   for (const rule of rules) {
-    if (!validRule(rule)) return { ...empty, problem: { code: 'invalid-rule', ruleId: rule.id } };
     if (!matchesPattern(rule.match, url)) continue;
+    if (!validRule(rule)) return { ...empty, problem: { code: 'invalid-rule', ruleId: rule.id } };
     let job: RegexJob | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
