@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "prompts": [
+    {
+      "id": "implement-ticket",
+      "name": "Implement internal ticket",
+      "body": "{{> skills-preamble}}\n\nUse the relevant skill to complete this request:\n\nCreate a local branch.\nUse Scout sub-agents to gather additional context from the provided path, linked\nresources in the request body (including WEB, OPS, and SEC), and comments on the\nincluded link.\nCreate a plan based on the collected context, then execute it.\n{{> review-before-commit}}\n{{url}}",
+      "tags": ["implementation", "ticket", "scout"],
+      "scope": ["https://jira.example.com/*"],
+      "variables": []
+    },
+    {
+      "id": "review-github-pr",
+      "name": "Review GitHub pull request",
+      "body": "Review this pull request for {{focus}}:\n{{url}}\n{{> review-only}}",
+      "tags": ["review", "github"],
+      "scope": ["https://github.com/*/*/pull/*"],
+      "variables": [
+        {
+          "kind": "free",
+          "name": "focus",
+          "label": "Review focus",
+          "defaultValue": "correctness",
+          "rememberLast": true
+        }
+      ]
+    },
+    {
+      "id": "ticket-summary",
+      "name": "Summarize internal ticket",
+      "body": "{{> house-rules}}\n\nSummarize {{ticket}} in project {{project}} as of {{date}}.\nIdentify the requested change and unresolved questions without modifying files:\n{{url}}",
+      "tags": ["ticket", "summary"],
+      "scope": ["https://jira.example.com/*"],
+      "variables": []
+    },
+    {
+      "id": "explain-selection",
+      "name": "Explain selected passage",
+      "body": "Explain this passage from {{title}} for a {{audience}}:\n\n{{selection}}\n\nSource: {{url}}\nHost: {{url.host}}\nPath: {{url.path}}",
+      "tags": ["explanation", "selection"],
+      "scope": [],
+      "variables": [
+        {
+          "kind": "free",
+          "name": "audience",
+          "label": "Audience",
+          "defaultValue": "software engineer",
+          "rememberLast": false
+        }
+      ]
+    }
+  ],
+  "partials": [
+    {
+      "name": "skills-preamble",
+      "body": "+ New skills have been loaded in this dir: \".agent/skills/\"\n+ Review at a high-level read and understand how each skill is used.\n* Use skill first: commit-policy (Sub-agent: Scout)."
+    },
+    {
+      "name": "review-before-commit",
+      "body": "Stop after implementing the changes so I can review them before anything is\ncommitted:"
+    },
+    {
+      "name": "house-rules",
+      "body": "{{> skills-preamble}}\n\n{{> review-before-commit}}"
+    },
+    {
+      "name": "review-only",
+      "body": "Report actionable findings with file and line references. Do not modify files."
+    }
+  ],
+  "siteRules": [
+    {
+      "id": "jira-queue",
+      "match": "https://jira.example.com/*",
+      "regex": "^https://jira\\.example\\.com/projects/(?<project>[A-Z][A-Z0-9]+)/queues/custom/[0-9]+/(?<ticket>\\k<project>-[0-9]+)(?:[/?#].*)?$",
+      "flags": ""
+    },
+    {
+      "id": "jira-browse",
+      "match": "https://jira.example.com/*",
+      "regex": "^https://jira\\.example\\.com/browse/(?<ticket>(?<project>[A-Z][A-Z0-9]+)-[0-9]+)(?:[/?#].*)?$",
+      "flags": ""
+    }
+  ]
+}

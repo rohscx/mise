@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.zip
+.DS_Store
+.claude/settings.local.json
+test-results/
+playwright-report/
+store/screenshots/

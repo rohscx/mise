@@ -1,0 +1,9 @@
+Mise
+Copyright 2026 rohscx
+
+Licensed under the Apache License, Version 2.0. A copy of the License is
+distributed with this product in LICENSE.
+
+Mise stores and fills prompt templates locally. It makes no network requests
+and is not affiliated with, endorsed by, or derived from any AI chat provider
+whose interfaces it prepares text for.
