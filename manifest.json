@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Mise",
+  "version": "0.0.0",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "contextMenus",
+    "clipboardWrite"
+  ],
+  "optional_permissions": [
+    "clipboardRead",
+    "tabs"
+  ],
+  "action": {},
+  "omnibox": {
+    "keyword": "mise"
+  },
+  "commands": {
+    "open-palette": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+1"
+      },
+      "description": "Open Mise",
+      "global": true
+    }
+  }
+}
