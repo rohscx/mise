@@ -1,0 +1,14 @@
+:root {
+  color-scheme: light dark;
+  --font-family: system-ui, sans-serif; --font-size: 13px; --line-height: 1.4;
+  --ground: #f4f5f3; --panel: #ffffff; --ink: #242e2b; --muted: #505f59;
+  --line: #b2bfb8; --accent: #006c58; --accent-ground: #e0f2eb;
+  --free: #694698; --free-ground: #f0eafa; --context-ground: #e5e9e6;
+  --danger: #a13328; --danger-ground: #fceae5;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ground: #19211e; --panel: #222d28; --ink: #e5ece7; --muted: #b2c2b8;
+    --line: #52675c; --accent: #7bdec0; --accent-ground: #243e34;
+    --free: #cbb0f0; --free-ground: #352c44; --context-ground: #344039;
+    --danger: #ffaea0; --danger-ground: #472d29; }
+}

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mise options</title><link rel="stylesheet" href="tokens.css"><link rel="stylesheet" href="options.css">
+<script type="module" src="options.js"></script></head>
+<body>
+<header><h1>Mise <span>Library and settings</span></h1><button id="reload" type="button">Reload saved state</button></header>
+<p id="status" role="status" aria-live="polite">Loading library…</p>
+<fieldset id="workspace" disabled>
+<nav id="sections" aria-label="Options sections"></nav>
+<section id="library-panel" aria-label="Library editing">
+<div class="toolbar"><button id="add" type="button">New prompt</button><button id="save" type="button">Save draft</button><span id="dirty"></span></div>
+<div class="library-layout"><aside id="library-list" aria-label="Library records"></aside><main id="editor"></main></div>
+<details><summary>All library diagnostics (including partial consumers)</summary><pre id="library-errors"></pre></details>
+</section>
+<section id="settings-panel" hidden aria-label="Settings"></section>
+<section id="transfer-panel" hidden aria-label="Import and export">
+<h2>Import and export</h2><p>JSON contains prompts, partials and ordered site rules only. Export requires all draft errors to be fixed. Exports include saved records only; unsaved edits are not included.</p>
+<button id="export" type="button">Export saved library</button>
+<label for="import-file">Import JSON (maximum 5 MiB)</label><input id="import-file" type="file" accept=".json,application/json">
+<p id="import-status" role="status"></p>
+<div id="replacement" hidden><p>Replace the entire saved library with this file? v0.1 cannot merge libraries. Usage and remembered inputs will be cleared; settings and captured source are kept.</p>
+<button id="export-first" type="button">Export first</button><button id="replace" type="button">Replace library</button><button id="cancel-import" type="button">Cancel</button></div>
+</section>
+</fieldset>
+</body></html>
