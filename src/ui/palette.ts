@@ -7,7 +7,7 @@ import { prepareFill, renderFill } from '../core/resolve.js';
 import type { FillSnapshot } from '../core/resolve.js';
 import { buildSearchIndex, rankPrompts } from '../core/ranking.js';
 import { annotations, fillErrors, renderPreview } from './preview.js';
-import { canClearCapture, copyFill, inputValues, searchSelection, sourceText } from './interaction.js';
+import { canClearCapture, copyFill, inputValues, rowStates, searchSelection, sourceText } from './interaction.js';
 import { button, element } from './dom.js';
 
 const search = element('search', HTMLInputElement);
@@ -52,11 +52,24 @@ function drawSearch(): void {
   matches = rankPrompts(buildSearchIndex(stored.state.library), search.value, activeUrl, stored.state.usage)
     .map(({ prompt }) => ({ id: prompt.id, name: prompt.name }));
   selected = searchSelection(selected, '', matches.length);
-  results.replaceChildren(...matches.map((match, index) => {
-    const node = button(match.name, () => run(() => selectPrompt(match.id)));
-    node.setAttribute('aria-current', String(index === selected));
-    return node;
-  }));
+  const ids = matches.map(match => match.id);
+  const states = rowStates(ids, selected, promptId);
+  // Selecting a prompt re-runs this only to move the highlight. Rebuilding
+  // every row for that discards focus and makes the list visibly churn, so the
+  // nodes are reused whenever the result set itself has not changed.
+  const rows = Array.from(results.querySelectorAll('button'));
+  const unchanged = rows.length === ids.length && rows.every((row, index) => row.dataset.id === ids[index]);
+  if (!unchanged) {
+    results.replaceChildren(...matches.map((match, index) => {
+      const node = button(match.name, () => { selected = index; run(() => selectPrompt(match.id)); });
+      node.dataset.id = match.id;
+      return node;
+    }));
+  }
+  Array.from(results.querySelectorAll('button')).forEach((node, index) => {
+    node.setAttribute('aria-current', String(states[index]?.current ?? false));
+    node.classList.toggle('cursor', states[index]?.cursor ?? false);
+  });
   if (!matches.length) results.textContent = stored.state.library.prompts.length ? 'No matching prompts.' : 'No prompts in the library.';
 }
 function drawFill(): void {
@@ -87,10 +100,23 @@ async function prepare(next: FillData, ticket: number, focus: boolean): Promise<
   if (focus) (inputs.querySelector('input') ?? (read.hidden ? preview : read)).focus();
 }
 async function selectPrompt(id: string, focus = true): Promise<void> {
-  discard(); promptId = id;
+  // Keep the previous fill on screen while the next one loads. Tearing it down
+  // first collapses the popup to its min-height and expands it again when the
+  // data lands, which reads as a flash on every selection.
+  epoch++; promptId = id;
   const ticket = epoch;
-  const next = await request<FillData>(picked === undefined ? { type: 'fill', promptId: id } : { type: 'fill', promptId: id, tabId: picked });
-  await prepare(next, ticket, focus);
+  copy.disabled = true;
+  fillPanel.setAttribute('aria-busy', 'true');
+  drawSearch();
+  try {
+    const next = await request<FillData>(picked === undefined ? { type: 'fill', promptId: id } : { type: 'fill', promptId: id, tabId: picked });
+    await prepare(next, ticket, focus);
+  } catch (error) {
+    if (ticket === epoch) discard();
+    throw error;
+  } finally {
+    if (ticket === epoch) fillPanel.removeAttribute('aria-busy');
+  }
 }
 async function staged(): Promise<void> {
   const slot = await request<CaptureSlot | null>({ type: 'slot' });

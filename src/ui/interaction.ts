@@ -9,6 +9,13 @@ export function inputValues(entries: Iterable<readonly [string, string]>): Recor
   for (const [name, value] of entries) values[name] = value;
   return values;
 }
+export interface RowState { current: boolean; cursor: boolean }
+// Two states, because the list shows both at once: `current` is the prompt
+// actually loaded into the fill panel, `cursor` is where the keyboard is. They
+// diverge as soon as someone arrows away from what they selected.
+export function rowStates(ids: readonly string[], cursor: number, loadedId: string | null): RowState[] {
+  return ids.map((id, index) => ({ current: loadedId !== null && id === loadedId, cursor: index === cursor }));
+}
 export function searchSelection(current: number, key: string, count: number): number {
   if (!count) return -1;
   return Math.max(0, Math.min(count - 1, current + (key === 'ArrowDown' ? 1 : key === 'ArrowUp' ? -1 : 0)));
