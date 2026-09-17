@@ -103,7 +103,7 @@ export function createController(deps: ControllerDependencies): Controller {
       } catch (error) {
         // Storage/platform errors can include sensitive values; expose only our bounded protocol errors.
         const message = error instanceof Error ? error.message : '';
-        const safe = /^(Invalid|Stale|Library replaced|Prompt|No |Tabs permission|Configure|Choose|Selected tab|Capture requires|Update partial|Fix library)/.test(message);
+        const safe = /^(Untrusted message sender$|Invalid|Stale|Library replaced|Prompt|No |Tabs permission|Configure|Choose|Selected tab|Capture requires|Update partial|Fix library)/.test(message);
         return { ok: false, error: copied ? 'Clipboard delivery succeeded, but usage and remembered values were not saved. Do not retry the clipboard write.' : safe ? message : 'Operation failed; storage or browser access is unavailable. No success was recorded.' };
       }
     },

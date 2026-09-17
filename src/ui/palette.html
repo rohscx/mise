@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Mise</title><link rel="stylesheet" href="palette.css"><script type="module" src="palette.js"></script></head>
+<body>
+<header><strong>Mise</strong><button id="capture" type="button">Capture current tab</button></header>
+<div id="staged" class="source" aria-label="Staged source">No captured source. Capture current tab or Choose tab.</div>
+<nav aria-label="Source controls"><button id="choose" type="button">Choose tab</button><button id="clear" type="button" disabled>Clear capture</button></nav>
+<section id="picker" hidden><label for="tab-query">Filter tabs</label><input id="tab-query" type="search"><div id="tabs" class="results"></div></section>
+<label for="search">Search prompts</label><input id="search" type="search" autocomplete="off" autofocus aria-controls="results">
+<div id="results" class="results" aria-label="Prompt results"></div>
+<section id="fill" hidden>
+<h1 id="prompt-name"></h1><div id="inputs"></div>
+<button id="read" type="button" hidden>Read clipboard</button>
+<div id="source" class="source" aria-label="Resolved source"></div>
+<div class="legend" aria-label="Value legend"><span class="context">Context</span><span class="derived">Derived</span><span class="free">Free input</span><span class="unresolved">Unresolved</span></div>
+<pre id="preview" tabindex="0" aria-label="Filled preview"></pre>
+<div id="errors" role="alert"></div><button id="copy" type="button" disabled>Copy</button>
+</section>
+<div id="status" role="status" aria-live="polite"></div>
+<details><summary>Keyboard shortcut</summary><p id="shortcut"></p><p>Remap conflicts at chrome://extensions/shortcuts. Global shortcuts vary by platform; on ChromeOS use the browser-focused shortcut. Escape closes Mise.</p></details>
+</body></html>

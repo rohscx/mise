@@ -7,7 +7,13 @@ import { createEvents } from './shell/events.js';
 const areas = { local: chrome.storage.local, session: chrome.storage.session, sync: chrome.storage.sync };
 const queue = createWriteQueue();
 const now = (): string => new Date().toISOString();
-const ready = restrictStorage(areas);
+const ready = restrictStorage(areas).catch(() => {
+  // Report the protection failure without disabling unrelated worker operations.
+  console.error('Storage access restriction failed. Reload the extension to retry.');
+  void chrome.action.setBadgeText({ text: '!' }).catch(() => {
+    console.error('Storage warning badge could not be displayed.');
+  });
+});
 const controller = createController({ areas, queue, session: areas.session, tabs: chrome.tabs,
   windows: chrome.windows, permissions: chrome.permissions, now, extensionId: chrome.runtime.id,
   notify: async (message): Promise<void> => { await chrome.runtime.sendMessage(message); },

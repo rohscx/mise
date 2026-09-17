@@ -5,7 +5,7 @@ import { isRecord } from '../core/schema.js';
 export interface StorageArea {
   get(key: string): Promise<Record<string, unknown>>;
   set(values: Record<string, unknown>): Promise<void>;
-  setAccessLevel(options: { accessLevel: 'TRUSTED_CONTEXTS' }): Promise<void>;
+  setAccessLevel?(options: { accessLevel: 'TRUSTED_CONTEXTS' }): Promise<void>;
 }
 export interface StorageAreas { local: StorageArea; session: StorageArea; sync: StorageArea }
 export interface StoredState { revision: number; generation: number; syncEnabled: boolean; state: LocalState }
@@ -59,7 +59,9 @@ export async function writeState(area: StorageArea, state: StoredState): Promise
   await area.set({ state: safeClone(state) });
 }
 export async function restrictStorage(areas: StorageAreas): Promise<void> {
-  await Promise.all(Object.values(areas).map((area: StorageArea) => area.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })));
+  await Promise.all(Object.values(areas).map(async (area: StorageArea): Promise<void> => {
+    if (typeof area.setAccessLevel === 'function') await area.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
+  }));
 }
 export async function publishStrategy(areas: StorageAreas, stored: StoredState): Promise<boolean> {
   if (!stored.syncEnabled) return true;

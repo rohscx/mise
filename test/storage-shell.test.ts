@@ -38,7 +38,7 @@ describe('worker storage and protocol', () => {
   });
   it('protects sender and request shape, including prototype names', async () => {
     const controller = createController(harness());
-    for (const untrusted of [{}, { id: 'mise', url: 'https://example.com' }, { ...sender, tab: {} }, { ...sender, id: 'other' }]) {
+    for (const untrusted of [{}, { id: 'mise', url: 'https://example.com' }, { ...sender, tab: { id: 1 }, url: 'https://example.com/' }, { ...sender, id: 'other' }]) {
       expect((await controller.handle({ type: 'state' }, untrusted)).ok).toBe(false);
     }
     for (const request of [{ type: '__proto__' }, { type: 'state', extra: true }, { type: 'fill', promptId: 12 }, { type: 'save', revision: -1, library: library() }]) {
@@ -85,6 +85,8 @@ describe('worker storage and protocol', () => {
     expect(await controller.handle({ type: 'settings', revision: 2, strategy: 'capture', knownChatHosts: [], syncEnabled: true }, sender))
       .toMatchObject({ ok: true, data: { syncPublished: false } });
     await restrictStorage(deps.areas);
-    expect(Object.values(deps.areas).map(area => area.access)).toEqual(['TRUSTED_CONTEXTS', 'TRUSTED_CONTEXTS', 'TRUSTED_CONTEXTS']);
+    expect(deps.areas.session.access).toBe('TRUSTED_CONTEXTS');
+    expect('setAccessLevel' in deps.areas.local).toBe(false);
+    expect('setAccessLevel' in deps.areas.sync).toBe(false);
   });
 });

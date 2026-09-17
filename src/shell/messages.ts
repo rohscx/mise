@@ -4,9 +4,10 @@ import { validateLibrary } from '../core/library.js';
 import { isStrategy, safeClone } from './storage.js';
 
 export interface Sender { id?: string | undefined; url?: string | undefined; tab?: unknown }
+// Trust Chrome-provided identity and document URL to exclude pages and content scripts; palette windows also have a tab.
 export function trustedSender(sender: Sender, extensionId: string, origin: string): boolean {
-  if (sender.id !== extensionId || sender.tab !== undefined || !sender.url) return false;
-  return sender.url.startsWith(origin) && ['popup.html', 'palette.html', 'options.html'].includes(
+  if (sender.id !== extensionId || !sender.url) return false;
+  return sender.url.startsWith(origin) && ['palette.html', 'options.html'].includes(
     sender.url.slice(origin.length).split(/[?#]/)[0] ?? '');
 }
 export function parseRequest(raw: unknown): Request {
