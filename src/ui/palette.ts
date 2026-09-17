@@ -43,9 +43,18 @@ async function request<T>(message: Request): Promise<T> {
 function run(task: () => Promise<void>): void {
   void task().catch(error => announce(error instanceof Error ? error.message : 'Browser access failed. Reopen Mise and retry.'));
 }
+const stagedRow = element('staged', HTMLDivElement);
+function showFill(on: boolean): void {
+  fillPanel.hidden = !on;
+  // While a fill is open its own source row already shows the resolved URL, so
+  // the staged row would repeat it, and the result list can yield space to the
+  // preview, which is the thing actually being read.
+  stagedRow.hidden = on;
+  document.body.classList.toggle('filling', on);
+}
 function discard(): void {
   epoch++; snapshot = null; data = null; values = inputValues([]);
-  copy.disabled = true; fillPanel.hidden = true; preview.replaceChildren(); inputs.replaceChildren();
+  copy.disabled = true; showFill(false); preview.replaceChildren(); inputs.replaceChildren();
 }
 function drawSearch(): void {
   if (!stored) return;
@@ -70,6 +79,7 @@ function drawSearch(): void {
     node.setAttribute('aria-current', String(states[index]?.current ?? false));
     node.classList.toggle('cursor', states[index]?.cursor ?? false);
   });
+  results.classList.toggle('scrollable', results.scrollHeight > results.clientHeight + 1);
   if (!matches.length) results.textContent = stored.state.library.prompts.length ? 'No matching prompts.' : 'No prompts in the library.';
 }
 function drawFill(): void {
@@ -96,7 +106,7 @@ async function prepare(next: FillData, ticket: number, focus: boolean): Promise<
     label.append(input); return label;
   }));
   element('prompt-name', HTMLHeadingElement).textContent = prompt.name;
-  fillPanel.hidden = false; drawFill();
+  showFill(true); drawFill();
   if (focus) (inputs.querySelector('input') ?? (read.hidden ? preview : read)).focus();
 }
 async function selectPrompt(id: string, focus = true): Promise<void> {
@@ -121,7 +131,7 @@ async function selectPrompt(id: string, focus = true): Promise<void> {
 async function staged(): Promise<void> {
   const slot = await request<CaptureSlot | null>({ type: 'slot' });
   element('clear', HTMLButtonElement).disabled = !canClearCapture(slot);
-  element('staged', HTMLDivElement).textContent = slot ? `Staged: ${sourceText(slot, 'capture', Date.now())}`
+  stagedRow.textContent = slot ? `Staged: ${sourceText(slot, 'capture', Date.now())}`
     : 'No captured source. Capture current tab or Choose tab.';
 }
 async function showTabs(): Promise<void> {

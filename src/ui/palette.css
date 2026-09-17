@@ -20,12 +20,20 @@ input { width: 100%; min-width: 0; }
 label { display: block; color: var(--muted); }
 h1 { font-size: 14px; margin: 0; }
 .source { white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; font-size: 11px; max-height: 76px; overflow: auto; flex-shrink: 0; }
-.results { min-height: 0; overflow: auto; max-height: 150px; flex-shrink: 1; }
+.results { min-height: 0; overflow-y: auto; max-height: 176px; flex-shrink: 1;
+  /* Rows wrap, so no max-height lands on a row boundary; snapping makes a
+     scrolled list stop on whole rows instead of slicing one in half. */
+  scroll-snap-type: y proximity; overscroll-behavior: contain; }
+.results button { scroll-snap-align: start; }
+/* No max-height lands on a row boundary, so a partly shown row is normal.
+   Fading it signals more below instead of looking like a broken cut. */
+.results.scrollable { mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
+body.filling .results { max-height: 92px; }
 .results button { display: block; text-align: left; width: 100%; margin-bottom: 4px; overflow-wrap: anywhere; }
 #picker { min-height: 0; max-height: 160px; overflow: auto; }
 #fill { display: flex; flex-direction: column; gap: 7px; flex: 1; min-height: 0; }
 #inputs { overflow: auto; max-height: 110px; flex-shrink: 0; }
-#preview { margin: 0; padding: 9px; min-height: 45px; flex: 1; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+#preview { margin: 0; padding: 9px; min-height: 96px; flex: 1; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere;
   background: var(--panel); border: 1px solid var(--line); border-radius: 5px; font: inherit; user-select: text; }
 .context { color: var(--muted); background: var(--context-ground); }
 .derived { color: var(--accent); background: var(--accent-ground); }

@@ -54,5 +54,7 @@ export function prepareImport(text: string): Validation<{ text: string; summary:
   const result = importLibrary(text);
   if (!result.ok) return result;
   const { prompts, partials, siteRules } = result.value;
-  return { ok: true, value: { text, summary: `${prompts.length} prompts, ${partials.length} partials, ${siteRules.length} site rules` } };
+  const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`;
+  return { ok: true, value: { text,
+    summary: `${count(prompts.length, 'prompt')}, ${count(partials.length, 'partial')}, ${count(siteRules.length, 'site rule')}` } };
 }

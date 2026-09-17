@@ -12,6 +12,8 @@ function draft(): ReturnType<typeof library> {
   input.partials = [{ name: 'outer', body: '{{> inner}}' }, { name: 'inner', body: 'line one\n{{bad token}} {{unknown}}' }];
   return input;
 }
+const singlePrompt = { id: 'one', name: 'One', body: 'Just {{url}}', tags: [], scope: [], variables: [] };
+
 describe('options editor', () => {
   it('saves erroneous drafts through the existing worker, without a persisted draft flag', async () => {
     const input = draft(), deps = harness(), controller = createController(deps);
@@ -66,5 +68,7 @@ describe('options editor', () => {
     expect(await readState(deps.areas.local)).toEqual(before);
     expect(prepareImport(JSON.stringify(library()))).toMatchObject({ ok: true,
       value: { summary: '4 prompts, 4 partials, 2 site rules' } });
+    expect(prepareImport(JSON.stringify({ schemaVersion: 1, prompts: [singlePrompt], partials: [], siteRules: [] })))
+      .toMatchObject({ ok: true, value: { summary: '1 prompt, 0 partials, 0 site rules' } });
   });
 });
