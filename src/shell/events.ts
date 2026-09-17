@@ -9,7 +9,7 @@ export interface SurfaceAccess {
   menu(): Promise<void>;
 }
 export interface EventHandlers {
-  installed(): Promise<void>;
+  installed(reason: string): Promise<void>;
   command(name: string): Promise<void>;
   suggestions(query: string): Promise<{ content: string; description: string }[]>;
   entered(text: string): Promise<void>;
@@ -20,7 +20,10 @@ export function createEvents(controller: Controller, session: StorageArea, queue
   const slot = createSlot(session, queue, { read: async (): Promise<null> => null }, now);
   const escape = (text: string): string => text.replace(/[<>&"']/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' })[char] ?? '');
   return {
-    installed: (): Promise<void> => surfaces.menu(),
+    installed: async (reason: string): Promise<void> => {
+      if (reason === 'install') await controller.seedStarter();
+      await surfaces.menu();
+    },
     command: async (name: string): Promise<void> => { if (name === 'open-palette') await surfaces.openPalette({}); },
     suggestions: async (query: string): Promise<{ content: string; description: string }[]> =>
       (await controller.search(query)).slice(0, 6).map(prompt => ({ content: `prompt:${prompt.id}`, description: escape(prompt.name) })),

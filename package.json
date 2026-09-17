@@ -12,7 +12,8 @@
     "verify:chrome": "node tools/verify-in-chrome.mjs",
     "package": "node tools/package.mjs",
     "audit:store": "node tools/audit-store.mjs",
-    "screenshots": "node store/screenshots.mjs"
+    "screenshots": "node store/screenshots.mjs",
+    "promo": "node store/promo.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.287",

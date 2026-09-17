@@ -1,4 +1,5 @@
 import { parseInvocation } from './palette.js';
+import { starterLibrary } from '../shared/starter.js';
 import type { LibraryReplaced, Payload, Request, Response, SearchResult } from '../shared/messages.js';
 import { reconcileRemembered } from '../core/resolve.js';
 import { buildSearchIndex, rankPrompts } from '../core/ranking.js';
@@ -21,6 +22,7 @@ export interface ControllerDependencies extends Sources {
   notify(message: LibraryReplaced): Promise<void>;
 }
 export interface Controller {
+  seedStarter(): Promise<void>;
   handle(raw: unknown, sender: Sender): Promise<Response>;
   search(query: string): Promise<SearchResult[]>;
   receiveSync(): Promise<void>;
@@ -93,6 +95,16 @@ export function createController(deps: ControllerDependencies): Controller {
   };
   return {
     search,
+    seedStarter: (): Promise<void> => deps.queue(async () => {
+      const stored = await readState(deps.areas.local);
+      const library = stored.state.library;
+      // Check inside the queue so an editor save cannot be overwritten by installation.
+      if (library.prompts.length || library.partials.length || library.siteRules.length) return;
+      const next = editedLibrary(stored, starterLibrary, true);
+      next.revision++;
+      await writeState(deps.areas.local, next);
+      await deps.notify({ type: 'library-replaced', generation: next.generation }).catch(() => undefined);
+    }),
     handle: async (raw: unknown, sender: Sender): Promise<Response> => {
       let copied = false;
       try {

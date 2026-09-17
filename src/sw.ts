@@ -42,7 +42,13 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, respond): true =
     () => respond({ ok: false, error: 'Storage initialization failed' }));
   return true;
 });
-chrome.runtime.onInstalled.addListener(() => run(() => events.installed()));
+chrome.runtime.onInstalled.addListener(details => run(async () => {
+  try { await events.installed(details.reason); }
+  catch (error) {
+    console.error('Mise installation failed', error);
+    throw error;
+  }
+}));
 chrome.commands.onCommand.addListener(command => run(() => events.command(command)));
 chrome.tabs.onActivated.addListener(info => run(() => activity.activated(info.tabId)));
 chrome.tabs.onRemoved.addListener(id => run(() => activity.removed(id)));
