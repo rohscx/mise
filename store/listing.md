@@ -128,7 +128,8 @@ Run `npm run promo`, inspect the result, and upload store/promo/tile-440x280.png
 
 ## Marquee promotional tile
 
-Leave blank (optional).
+Optional; Chrome uses it only if the extension is featured. Upload
+store/promo/marquee-1400x560.png. 1400 x 560, 24-bit PNG with no alpha.
 
 ## Official URL
 
