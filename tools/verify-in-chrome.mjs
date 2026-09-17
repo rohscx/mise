@@ -16,6 +16,8 @@ const notes = [];
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function resolveChrome() {
+  // MISE_CHROME wins: current stable Chrome ignores --load-extension, so a
+  // machine can have a browser that is found first and cannot do the job.
   if (process.env.MISE_CHROME) return process.env.MISE_CHROME;
   const mac = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
   try { await access(mac); return mac; } catch { /* not macOS */ }
