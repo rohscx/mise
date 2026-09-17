@@ -17,6 +17,7 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run audit:store
       # Chromium rather than the runner's Google Chrome: Chrome refuses content
       # verification for an unpacked extension and disables its APIs instead of
       # failing to load, which reads as a dozen unrelated failures.

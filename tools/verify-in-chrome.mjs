@@ -3,61 +3,14 @@
 // that exact shape reached a green unit-test suite: a storage method the fakes
 // had and Chrome did not, a sender shape the fakes never produced, and a
 // viewport-relative width that collapsed the popup. Run with `npm run verify:chrome`.
-import { spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { cdp, evaluate, launchBrowser, seedStorage, sleep } from './chrome-harness.mjs';
 
 const DIST = process.env.MISE_DIST ?? 'dist';
 const PORT = Number(process.env.MISE_CDP_PORT ?? 9333);
 const problems = [];
 const notes = [];
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-async function resolveChrome() {
-  // MISE_CHROME wins: current stable Chrome ignores --load-extension, so a
-  // machine can have a browser that is found first and cannot do the job.
-  if (process.env.MISE_CHROME) return process.env.MISE_CHROME;
-  const mac = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  try { await access(mac); return mac; } catch { /* not macOS */ }
-  for (const name of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser']) {
-    const found = spawnSync('which', [name], { encoding: 'utf8' });
-    if (found.status === 0 && found.stdout.trim()) return found.stdout.trim();
-  }
-  // Playwright's Chromium is the fallback CI relies on: Google Chrome refuses
-  // content verification for an unpacked extension on some builds, which
-  // silently disables the extension's APIs rather than failing to load it.
-  try {
-    const { chromium } = await import('playwright');
-    const path = chromium.executablePath();
-    if (path) return path;
-  } catch { /* playwright is optional */ }
-  throw new Error('No Chrome found. Set MISE_CHROME to a Chrome or Chromium binary.');
-}
-
-async function cdp(url, commands, onEvent) {
-  const socket = new WebSocket(url);
-  let id = 0;
-  const pending = new Map();
-  await new Promise((resolve, reject) => {
-    socket.onopen = resolve;
-    socket.onerror = () => reject(new Error(`Could not attach to ${url}`));
-  });
-  socket.onmessage = event => {
-    const message = JSON.parse(event.data);
-    if (message.id !== undefined) pending.get(message.id)?.(message);
-    else onEvent?.(message);
-  };
-  const send = (method, params = {}) => new Promise(resolve => {
-    const next = ++id;
-    pending.set(next, resolve);
-    socket.send(JSON.stringify({ id: next, method, params }));
-  });
-  const result = await commands(send);
-  socket.close();
-  return result;
-}
 
 // Errors and warnings from any execution context, however they are reported.
 function collector(sink) {
@@ -75,78 +28,23 @@ function collector(sink) {
   };
 }
 
-const evaluate = (send, expression, awaitPromise = false) =>
-  send('Runtime.evaluate', { expression, awaitPromise, returnByValue: true })
-    .then(reply => reply.result?.exceptionDetails
-      ? `EXCEPTION: ${reply.result.exceptionDetails.text}`
-      : reply.result?.result?.value);
-
-const chromePath = await resolveChrome();
-const profile = await mkdtemp(join(tmpdir(), 'mise-verify-'));
-const chrome = spawn(chromePath, [
-  '--headless=new',
-  `--user-data-dir=${profile}`,
-  `--remote-debugging-port=${PORT}`,
-  `--load-extension=${DIST}`,
-  `--disable-extensions-except=${DIST}`,
-  // Chrome 137+ ignores --load-extension unless this opt-out is present; the
-  // extension then half-loads with no API access, which looks like a dozen
-  // unrelated failures rather than a refusal.
-  '--disable-features=DisableLoadExtensionCommandLineSwitch',
-  '--no-first-run', '--no-default-browser-check', '--disable-sync',
-  '--disable-background-networking', '--disable-component-update',
-  ...(process.env.CI ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
-  'about:blank',
-], { stdio: ['ignore', 'ignore', 'pipe'] });
-let stderr = '';
-chrome.stderr.on('data', chunk => { stderr += chunk.toString(); });
+const browser = await launchBrowser(DIST, PORT);
+const { open, extensionId, absolute } = browser;
 
 try {
-  // Chrome derives an unpacked extension's id from its absolute path, so it can
-  // be computed rather than discovered. A service-worker target only exists
-  // once something wakes the worker, and newer Chrome leaves it dormant, so
-  // waiting for that target reads as "the extension failed to load".
-  const absolute = resolve(DIST);
-  const digest = createHash('sha256').update(absolute, 'utf8').digest('hex').slice(0, 32);
-  const extensionId = [...digest].map(c => String.fromCharCode(97 + Number.parseInt(c, 16))).join('');
   notes.push(`Extension ${extensionId} loaded from ${absolute}`);
 
   const manifestEarly = JSON.parse(await readFile(join(DIST, 'manifest.json'), 'utf8'));
-  const open = async path => {
-    for (let attempt = 0; attempt < 40; attempt++) {
-      try {
-        return await (await fetch(
-          `http://127.0.0.1:${PORT}/json/new?chrome-extension://${extensionId}/${path}`, { method: 'PUT' })).json();
-      } catch { await sleep(300); }
-    }
-    throw new Error('Chrome never opened its debugging port');
-  };
-
   // Seed from an extension page: it has the same storage access as the worker,
   // needs no target discovery, and wakes the worker on the way.
   const library = JSON.parse(await readFile(join(DIST, '..', 'examples/prompts.example.json'), 'utf8'));
-  const state = {
-    revision: 1, generation: 1, syncEnabled: false,
-    state: { library, usage: {}, remembered: {}, knownChatHosts: [], strategy: 'capture' },
-  };
   const slot = {
     url: 'https://jira.example.com/projects/OPS/queues/custom/43/OPS-4821',
     title: 'OPS-4821 Session tokens survive a queue failover',
     selection: 'Rotation should invalidate the previous key once every worker reports the new one.',
     sourceTabId: null, source: 'tab', capturedAt: new Date().toISOString(),
   };
-  const seeder = await open(manifestEarly.options_ui?.page ?? 'options.html');
-  const seeded = await cdp(seeder.webSocketDebuggerUrl, async send => {
-    await send('Runtime.enable');
-    await sleep(1200);
-    const reachable = await evaluate(send, 'typeof chrome?.storage?.local');
-    if (reachable !== 'object') return `extension APIs unreachable (chrome.storage.local is ${reachable})`;
-    return evaluate(send, `(async () => {
-      await chrome.storage.local.set({ state: ${JSON.stringify(state)} });
-      await chrome.storage.session.set({ slot: ${JSON.stringify(slot)} });
-      return (await chrome.storage.local.get('state')).state.state.library.prompts.length;
-    })()`, true);
-  });
+  const seeded = await seedStorage(open, library, slot, manifestEarly.options_ui?.page);
   if (seeded !== library.prompts.length) {
     problems.push(`seed — ${seeded}; expected ${library.prompts.length} prompts. The extension is not installed or has no API access.`);
   }
@@ -257,13 +155,10 @@ try {
 } catch (error) {
   problems.push(`harness — ${error.message}`);
 } finally {
-  chrome.kill('SIGTERM');
-  await sleep(400);
-  chrome.kill('SIGKILL');
-  await rm(profile, { recursive: true, force: true });
+  await browser.close();
 }
 
-for (const line of stderr.split('\n')) {
+for (const line of browser.stderr().split('\n')) {
   if (/extension|manifest/i.test(line) && /error|invalid|fail/i.test(line)) problems.push(`chrome — ${line.trim()}`);
 }
 
