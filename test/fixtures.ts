@@ -2,8 +2,8 @@ import { readFileSync } from 'node:fs';
 import { Worker } from 'node:worker_threads';
 import type { ExportFile, FillContext, LocalState, Prompt } from '../src/shared/types.js';
 import { importLibrary } from '../src/core/library.js';
-import type { RegexExecutor, RegexJob } from '../src/core/rules.js';
-import { isRecord } from '../src/core/schema.js';
+import type { RegexExecutor } from '../src/core/rules.js';
+import { createRegexExecutor, type DisposableWorker } from '../src/shell/regex-worker.js';
 
 export const exampleUrl = 'https://jira.example.com/projects/OPS/queues/custom/43/OPS-4821';
 export function library(): ExportFile {
@@ -24,26 +24,18 @@ export function state(): LocalState {
   return { library: library(), usage: {}, remembered: {}, knownChatHosts: [], strategy: 'capture' };
 }
 // This test adapter exercises the disposable-worker contract without browser APIs.
-export const execute: RegexExecutor = (rule, url): RegexJob => {
+export const execute: RegexExecutor = createRegexExecutor((): DisposableWorker => {
   const worker = new Worker(`
-    const { parentPort, workerData } = require('node:worker_threads');
-    const match = new RegExp(workerData.rule.regex, workerData.rule.flags).exec(workerData.url);
-    parentPort.postMessage(match ? Object.fromEntries(Object.entries(match.groups || {}).filter(([, v]) => v !== undefined)) : null);
-  `, { eval: true, workerData: { rule, url } });
-  return {
-    result: new Promise((resolve, reject) => {
-      worker.once('error', reject);
-      worker.once('message', (message: unknown) => {
-        if (message === null) { resolve(null); return; }
-        if (!isRecord(message)) { reject(new Error('Invalid worker result')); return; }
-        const captures: Record<string, string> = Object.create(null);
-        for (const [name, value] of Object.entries(message)) {
-          if (typeof value !== 'string') { reject(new Error('Invalid capture')); return; }
-          captures[name] = value;
-        }
-        resolve(captures);
-      });
-    }),
-    terminate: () => { void worker.terminate(); },
-  };
-};
+    const { parentPort } = require('node:worker_threads');
+    parentPort.on('message', ({ regex, flags, url }) => {
+      const match = new RegExp(regex, flags).exec(url);
+      parentPort.postMessage(match ? Object.fromEntries(Object.entries(match.groups || {}).filter(([, v]) => v !== undefined)) : null);
+    });
+    parentPort.postMessage('ready');
+  `, { eval: true });
+  const port: DisposableWorker = { onmessage: null, onerror: null,
+    postMessage: value => worker.postMessage(value), terminate: () => { void worker.terminate(); } };
+  worker.on('message', (data: unknown) => port.onmessage?.({ data }));
+  worker.on('error', (error: Error) => port.onerror?.(error));
+  return port;
+});

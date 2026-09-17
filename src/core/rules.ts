@@ -2,7 +2,7 @@ import type { SiteRule } from '../shared/types.js';
 
 export interface RuleProblem { code: 'invalid-rule' | 'url-size' | 'timeout' | 'worker'; ruleId: string }
 export interface RuleResult { ruleId: string | null; captures: Record<string, string>; problem: RuleProblem | null }
-export interface RegexJob { result: Promise<Record<string, string> | null>; terminate: () => void }
+export interface RegexJob { ready: Promise<void>; result: Promise<Record<string, string> | null>; terminate: () => void }
 // The host supplies a disposable worker so a blocked regex cannot block the caller's timer.
 export type RegexExecutor = (rule: SiteRule, url: string) => RegexJob;
 
@@ -107,21 +107,26 @@ export function validRule(rule: SiteRule): boolean {
 export async function evaluateRules(rules: readonly SiteRule[], url: string, execute: RegexExecutor): Promise<RuleResult> {
   const empty: RuleResult = { ruleId: null, captures: {}, problem: null };
   if (new TextEncoder().encode(url).length > 16 * 1024) return { ...empty, problem: { code: 'url-size', ruleId: '' } };
-  const deadline = performance.now() + 100;
   for (const rule of rules) {
     if (!matchesPattern(rule.match, url)) continue;
     if (!validRule(rule)) return { ...empty, problem: { code: 'invalid-rule', ruleId: rule.id } };
     let job: RegexJob | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      const remaining = deadline - performance.now();
-      if (remaining <= 0) return { ...empty, problem: { code: 'timeout', ruleId: rule.id } };
       job = execute(rule, url);
-      const outcome = await Promise.race([
-        job.result.then(captures => ({ captures })),
-        new Promise<'timeout'>(resolve => { timer = setTimeout(() => resolve('timeout'), Math.max(0, deadline - performance.now())); }),
+      // Observe failures immediately, including while startup is still pending.
+      const result = job.result.then(captures => ({ captures }), () => 'worker' as const);
+      const startup = await Promise.race([
+        job.ready.then(() => 'ready' as const),
+        new Promise<'worker'>(resolve => { timer = setTimeout(() => resolve('worker'), 2000); }),
       ]);
-      if (outcome === 'timeout') return { ...empty, problem: { code: 'timeout', ruleId: rule.id } };
+      if (startup === 'worker') return { ...empty, problem: { code: 'worker', ruleId: rule.id } };
+      clearTimeout(timer);
+      const outcome = await Promise.race([
+        result,
+        new Promise<'timeout'>(resolve => { timer = setTimeout(() => resolve('timeout'), 100); }),
+      ]);
+      if (outcome === 'timeout' || outcome === 'worker') return { ...empty, problem: { code: outcome, ruleId: rule.id } };
       if (outcome.captures !== null) return { ruleId: rule.id, captures: outcome.captures, problem: null };
     } catch { return { ...empty, problem: { code: 'worker', ruleId: rule.id } }; }
     finally { if (timer !== undefined) clearTimeout(timer); job?.terminate(); }

@@ -14,4 +14,5 @@ export function attachRegexWorker(port: RegexPort): void {
     if (match) for (const [key, value] of Object.entries(match.groups ?? {})) if (value !== undefined) captures[key] = value;
     port.postMessage(match ? captures : null);
   };
+  port.postMessage('ready');
 }

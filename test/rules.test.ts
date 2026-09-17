@@ -77,11 +77,53 @@ describe('site rules and accessors', () => {
     expect((await evaluateRules(rules, 'https://example.com/' + 'a'.repeat(100) + '!', execute)).problem)
       .toEqual({ code: 'timeout', ruleId: 'bad' });
   }, 2000);
+  it('reports slow worker startup as worker failure and terminates it', async () => {
+    vi.useFakeTimers();
+    const terminate = vi.fn();
+    try {
+      const pending = evaluateRules(library().siteRules, exampleUrl, () => ({
+        ready: new Promise(resolve => { setTimeout(resolve, 2500); }),
+        result: new Promise(() => undefined), terminate,
+      }));
+      await vi.advanceTimersByTimeAsync(2000);
+      expect((await pending).problem).toEqual({ code: 'worker', ruleId: 'jira-queue' });
+      expect(terminate).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(1); // Only the fake worker's delayed readiness remains.
+    } finally { vi.useRealTimers(); }
+  });
+  it('allows slow startup and gives every matching rule its own execution budget', async () => {
+    vi.useFakeTimers();
+    const terminate = vi.fn();
+    const rules = [
+      { id: 'miss', match: 'https://*/*', regex: '^nomatch$', flags: '' },
+      { id: 'hit', match: 'https://*/*', regex: '(?<ticket>OPS)', flags: '' },
+    ] satisfies Parameters<typeof evaluateRules>[0];
+    try {
+      const pending = evaluateRules(rules, exampleUrl, rule => {
+        const ready = new Promise<void>(resolve => { setTimeout(resolve, 500); });
+        return { ready, result: ready.then(() => new Promise<Record<string, string> | null>(resolve => {
+          setTimeout(() => resolve(rule.id === 'miss' ? null : { ticket: 'OPS' }), 80);
+        })), terminate };
+      });
+      await vi.advanceTimersByTimeAsync(1160);
+      expect(await pending).toEqual({ ruleId: 'hit', captures: { ticket: 'OPS' }, problem: null });
+      expect(terminate).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+  it('handles a result failure during startup without leaking a rejection', async () => {
+    const terminate = vi.fn();
+    expect((await evaluateRules(library().siteRules, exampleUrl, () => ({
+      ready: Promise.reject(new Error('startup failed')),
+      result: Promise.reject(new Error('worker failed')), terminate,
+    }))).problem).toEqual({ code: 'worker', ruleId: 'jira-queue' });
+    expect(terminate).toHaveBeenCalledOnce();
+  });
   it('terminates successful and failed jobs', async () => {
     const terminate = vi.fn();
     const rules = library().siteRules;
-    await evaluateRules(rules, exampleUrl, () => ({ result: Promise.resolve({}), terminate }));
+    await evaluateRules(rules, exampleUrl, () => ({ ready: Promise.resolve(), result: Promise.resolve({}), terminate }));
     expect(terminate).toHaveBeenCalledOnce();
-    expect((await evaluateRules(rules, exampleUrl, () => ({ result: Promise.reject(new Error('failed')), terminate }))).problem?.code).toBe('worker');
+    expect((await evaluateRules(rules, exampleUrl, () => ({ ready: Promise.resolve(), result: Promise.reject(new Error('failed')), terminate }))).problem?.code).toBe('worker');
   });
 });

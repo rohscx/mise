@@ -54,7 +54,7 @@ export type Request =
 /**
  * Input for document-side prepareFill and renderFill. prepareFill freezes the snapshot;
  * changing sources requires a new fill. Use browserRegexExecutor with packaged regex.js:
- * the core owns the aggregate 100 ms budget and the executor terminates its Web Worker.
+ * the core owns the startup and per-rule execution budgets and the executor terminates its Web Worker.
  * Clipboard reads require consent in the focused document and remain fill-local; never
  * send or persist clipboard contents. Copy only valid rendered plain text.
  */

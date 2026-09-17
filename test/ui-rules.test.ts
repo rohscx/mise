@@ -30,13 +30,13 @@ describe('options rule ordering and URL tester', () => {
   });
   it('surfaces timeouts and terminates the job', async () => {
     const terminate = vi.fn();
-    const stalled: RegexExecutor = () => ({ result: new Promise(() => undefined), terminate });
+    const stalled: RegexExecutor = () => ({ ready: Promise.resolve(), result: new Promise(() => undefined), terminate });
     expect(await testRule(rule, 'https://example.com/OPS-42', stalled)).toEqual({ kind: 'error', message: 'ticket: timeout' });
     expect(terminate).toHaveBeenCalledOnce();
   });
   it('serializes the URL before evaluation and keeps result statuses distinct', async () => {
     let received = '';
-    const observe: RegexExecutor = (_rule, url) => { received = url; return { result: Promise.resolve({}), terminate: (): void => undefined }; };
+    const observe: RegexExecutor = (_rule, url) => { received = url; return { ready: Promise.resolve(), result: Promise.resolve({}), terminate: (): void => undefined }; };
     expect(testResultText(await testRule(rule, 'https://EXAMPLE.com:443/a b', observe))).toBe('Matched; no named captures');
     expect(received).toBe('https://example.com/a%20b');
     expect(testResultText({ kind: 'no-match' })).toBe('No match');

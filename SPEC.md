@@ -533,7 +533,8 @@ Request optional permission then read plain text once; keep it only in the curre
 Never export or remember clipboard contents; cancel/close discards the in-memory value.
 Treat templates, imported files, URLs, selection, and clipboard as untrusted plain text.
 Render previews and search results as text, never executable markup or evaluated expressions.
-Limit regex input URLs to 16 KiB and evaluate rules in a disposable worker with a 100 ms budget.
+Limit regex input URLs to 16 KiB and bound regex evaluation per rule to 100 ms in a disposable worker.
+Wait separately up to 2000 ms for worker startup; startup failures are worker errors.
 Timeout terminates that worker and blocks fill with the rule ID; no silent fallback.
 Restrict storage access to trusted extension contexts; content scripts receive only needed data.
 Validate message sender and shape; do not expose library-reading handlers to ordinary pages.

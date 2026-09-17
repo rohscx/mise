@@ -21,9 +21,13 @@ export function createRegexExecutor(createWorker: WorkerFactory): RegexExecutor 
       worker.terminate();
       cancel();
     };
+    let announceReady: () => void = () => undefined;
+    let failStartup: (error: Error) => void = () => undefined;
+    const ready = new Promise<void>((resolve, reject) => { announceReady = resolve; failStartup = reject; });
     const result = new Promise<Record<string, string> | null>((resolve, reject) => {
       cancel = () => resolve(null);
       worker.onmessage = ({ data }): void => {
+        if (data === 'ready') { announceReady(); return; }
         if (data === null) { resolve(null); return; }
         if (!isRecord(data)) { reject(new Error('Invalid regex worker response')); return; }
         const captures: Record<string, string> = Object.create(null);
@@ -33,12 +37,17 @@ export function createRegexExecutor(createWorker: WorkerFactory): RegexExecutor 
         }
         resolve(captures);
       };
-      worker.onerror = (): void => reject(new Error('Regex worker failed'));
+      const fail = (message: string): void => {
+        const error = new Error(message);
+        failStartup(error);
+        reject(error);
+      };
+      worker.onerror = (): void => fail('Regex worker failed');
       try { worker.postMessage({ regex: rule.regex, flags: rule.flags, url }); }
-      catch { reject(new Error('Regex worker unavailable')); }
+      catch { fail('Regex worker unavailable'); }
     });
-    // The core owns the aggregate 100 ms budget and invokes terminate in finally.
-    return { result, terminate };
+    // The core owns the startup and per-rule execution budgets and invokes terminate in finally.
+    return { ready, result, terminate };
   };
 }
 
