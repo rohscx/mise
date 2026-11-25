@@ -18,7 +18,9 @@ const controller = createController({ areas, queue, session: areas.session, tabs
   windows: chrome.windows, permissions: chrome.permissions, now, extensionId: chrome.runtime.id,
   notify: async (message): Promise<void> => { await chrome.runtime.sendMessage(message); },
   origin: chrome.runtime.getURL(''), selection: { read: async (tabId: number): Promise<string | null> => {
-    const results = await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] },
+    // injectImmediately: the default waits for document_idle, which on a heavy
+    // page means waiting for it to finish loading before capture can complete.
+    const results = await chrome.scripting.executeScript({ target: { tabId, frameIds: [0] }, injectImmediately: true,
       func: (): string | null => window.getSelection()?.toString() ?? null });
     const result: unknown = results[0]?.result;
     return typeof result === 'string' ? result : null;

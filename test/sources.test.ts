@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { createActivity, createSlot, readActivity, readSlot } from '../src/shell/slot.js';
+import { describe, expect, it, vi } from 'vitest';
+import { createActivity, createSlot, readActivity, readSlot, SELECTION_TIMEOUT_MS } from '../src/shell/slot.js';
 import { listTabs, resolveSource } from '../src/shell/sources.js';
 import { createWriteQueue } from '../src/shell/storage.js';
 import { harness, MemoryArea } from './shell-fixtures.js';
@@ -107,4 +107,76 @@ describe('capture and source strategies', () => {
     expect(await readActivity(deps.session)).toEqual([]);
   });
 
+});
+
+describe('capture on slow pages', () => {
+  // A page that is still loading or stuck in a long task never answers.
+  const unanswered = { read: (): Promise<string | null> => new Promise(() => undefined) };
+
+  it('completes without a selection when the page never answers', async () => {
+    vi.useFakeTimers();
+    try {
+      const deps = harness();
+      const slot = createSlot(deps.session, deps.queue, unanswered, deps.now);
+      const pending = slot.capture(await deps.tabs.get(1));
+      await vi.advanceTimersByTimeAsync(SELECTION_TIMEOUT_MS);
+      expect(await pending).toMatchObject({ url: 'https://ticket.example/a', selection: null });
+      expect(await slot.read()).toMatchObject({ url: 'https://ticket.example/a', selection: null });
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('does not hold the write queue while waiting on the page', async () => {
+    vi.useFakeTimers();
+    try {
+      const deps = harness();
+      const slot = createSlot(deps.session, deps.queue, unanswered, deps.now);
+      const capture = slot.capture(await deps.tabs.get(1));
+      // No time passes. Opening the palette and recording a copy share this
+      // queue; before the fix this write sat behind the page until it loaded.
+      let settled = false;
+      void deps.queue(async () => undefined).then(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(settled).toBe(true);
+      await vi.advanceTimersByTimeAsync(SELECTION_TIMEOUT_MS);
+      await capture;
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('lets the latest capture win when an earlier, slower one finishes after it', async () => {
+    const deps = harness();
+    deps.records.set(2, { id: 2, windowId: 1, url: 'https://ticket.example/later', incognito: false });
+    let release: (value: string) => void = () => undefined;
+    const slowOnFirstTab = { read: (tabId: number): Promise<string | null> =>
+      tabId === 1 ? new Promise(resolve => { release = resolve; }) : Promise.resolve('later selection') };
+    const slot = createSlot(deps.session, deps.queue, slowOnFirstTab, deps.now);
+    const first = slot.capture(await deps.tabs.get(1));
+    await slot.capture(await deps.tabs.get(2));
+    release('stale selection');
+    await first;
+    expect(await slot.read()).toMatchObject({ url: 'https://ticket.example/later', selection: 'later selection' });
+  });
+
+  it('keeps a clear issued while a slow capture is still reading the page', async () => {
+    const deps = harness();
+    let release: (value: string) => void = () => undefined;
+    const slow = { read: (): Promise<string | null> => new Promise(resolve => { release = resolve; }) };
+    const slot = createSlot(deps.session, deps.queue, slow, deps.now);
+    const capture = slot.capture(await deps.tabs.get(1));
+    await slot.clear();
+    release('arrived after the clear');
+    await capture;
+    expect(await slot.read()).toBeNull();
+  });
+
+  it('keeps a link capture issued while a slow tab capture is still reading', async () => {
+    const deps = harness();
+    let release: (value: string) => void = () => undefined;
+    const slow = { read: (): Promise<string | null> => new Promise(resolve => { release = resolve; }) };
+    const slot = createSlot(deps.session, deps.queue, slow, deps.now);
+    const capture = slot.capture(await deps.tabs.get(1));
+    await slot.link('https://ticket.example/linked', 1);
+    release('arrived after the link');
+    await capture;
+    expect(await slot.read()).toMatchObject({ url: 'https://ticket.example/linked', source: 'link' });
+  });
 });

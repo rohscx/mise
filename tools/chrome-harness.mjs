@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { access, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -54,7 +54,10 @@ export const evaluate = (send, expression, awaitPromise = false) =>
       : reply.result?.result?.value);
 
 export async function launchBrowser(dist, port = 9333) {
-  const DIST = resolve(dist);
+  // Chrome hashes the canonical path to derive an unpacked extension's id. On
+  // macOS /var and /tmp are symlinks into /private, so an unresolved path
+  // computes the wrong id and every page opened under it has no extension APIs.
+  const DIST = await realpath(resolve(dist));
   const PORT = port;
   const chromePath = await resolveChrome();
   const profile = await mkdtemp(join(tmpdir(), 'mise-browser-'));
@@ -81,7 +84,7 @@ export async function launchBrowser(dist, port = 9333) {
   // be computed rather than discovered. A service-worker target only exists
   // once something wakes the worker, and newer Chrome leaves it dormant, so
   // waiting for that target reads as "the extension failed to load".
-  const absolute = resolve(dist);
+  const absolute = DIST;
   const digest = createHash('sha256').update(absolute, 'utf8').digest('hex').slice(0, 32);
   const extensionId = [...digest].map(c => String.fromCharCode(97 + Number.parseInt(c, 16))).join('');
   const open = async path => {
