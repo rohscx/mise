@@ -1,6 +1,6 @@
 {
   "name": "mise",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
@@ -10,6 +10,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "verify:chrome": "node tools/verify-in-chrome.mjs",
+    "verify:slow-page": "node tools/verify-slow-page.mjs",
     "package": "node tools/package.mjs",
     "audit:store": "node tools/audit-store.mjs",
     "screenshots": "node store/screenshots.mjs",
